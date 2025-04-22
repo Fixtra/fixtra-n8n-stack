@@ -41,15 +41,16 @@ if [ -z "$N8N_HOST" ]; then
 fi
 
 # Tworzenie katalogu dla pliku nginx
-echo "📁 Tworzę katalog dla konfiguracji nginx..."
+echo "📁 Sprawdzam katalog dla konfiguracji nginx..."
 mkdir -p nginx
 
-# Kopiowanie pliku konfiguracyjnego nginx
-echo "📄 Kopiuję plik konfiguracyjny nginx..."
-cp n8n.conf nginx/n8n.conf
-
-# Konfiguracja NGINX
+# Sprawdzanie konfiguracji nginx
 echo "🔄 Konfiguracja NGINX..."
+if [ ! -f "nginx/n8n.conf" ]; then
+    echo "⚠️ Plik nginx/n8n.conf nie istnieje. Upewnij się, że został utworzony."
+    exit 1
+fi
+
 sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 sudo ln -sf "$(pwd)/nginx/n8n.conf" /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
