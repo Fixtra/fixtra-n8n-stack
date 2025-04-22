@@ -40,6 +40,14 @@ if [ -z "$N8N_HOST" ]; then
     exit 1
 fi
 
+# Tworzenie katalogu dla pliku nginx
+echo "📁 Tworzę katalog dla konfiguracji nginx..."
+mkdir -p nginx
+
+# Kopiowanie pliku konfiguracyjnego nginx
+echo "📄 Kopiuję plik konfiguracyjny nginx..."
+cp n8n.conf nginx/n8n.conf
+
 # Konfiguracja NGINX
 echo "🔄 Konfiguracja NGINX..."
 sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
