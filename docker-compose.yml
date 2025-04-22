@@ -11,6 +11,7 @@ services:
     volumes:
       - ./n8n_data:/home/node/.n8n
     depends_on:
+      - postgres
       - redis
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:5678/healthz"]
@@ -24,6 +25,24 @@ services:
       options:
         max-size: "100m"
         max-file: "3"
+
+  postgres:
+    image: postgres:17
+    container_name: n8n-postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${DB_POSTGRES_PASS}
+      - POSTGRES_DB=${DB_POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${DB_POSTGRES_DB} -U ${DB_POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - n8n-network
 
   redis:
     image: redis:6-alpine
@@ -48,3 +67,6 @@ services:
 networks:
   n8n-network:
     driver: bridge
+
+volumes:
+  postgres_data:
