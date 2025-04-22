@@ -24,7 +24,7 @@ services:
       - postgres
       - redis
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:5678/healthz"]
+      test: ["CMD", "wget", "--spider", "http://0.0.0.0:5678/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
