@@ -37,9 +37,73 @@ services:
         max-size: "100m"
         max-file: "3"
 
-  n8n-worker:
+  n8n-worker-1:
     image: n8nio/n8n
-    container_name: n8n-worker
+    container_name: n8n-worker-1
+    restart: always
+    command: worker
+    env_file:
+      - .env
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${DB_POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${DB_POSTGRES_PASS}
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - EXECUTIONS_MODE=queue
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+      - redis
+      - n8n
+    networks:
+      - n8n-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  n8n-worker-2:
+    image: n8nio/n8n
+    container_name: n8n-worker-2
+    restart: always
+    command: worker
+    env_file:
+      - .env
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${DB_POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${DB_POSTGRES_PASS}
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - EXECUTIONS_MODE=queue
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+      - redis
+      - n8n
+    networks:
+      - n8n-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  n8n-worker-3:
+    image: n8nio/n8n
+    container_name: n8n-worker-3
     restart: always
     command: worker
     env_file:
