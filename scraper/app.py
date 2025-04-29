@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 import requests
-import re
 import logging
 import time
 import random
@@ -8,10 +7,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import concurrent.futures
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry  # Fixed import path
 import validators
-# Replace fake_useragent with a static list of user agents
-# from fake_useragent import UserAgent
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -20,6 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 import os
+from webdriver_manager.chrome import ChromeDriverManager  # For automatic chromedriver management
 
 app = Flask(__name__)
 
@@ -109,7 +107,7 @@ class FinancialReportScraper:
         self.use_browser = True  # Whether to use browser automation for dynamic content
         self.browser = None
         self.browser_wait_time = 5  # Seconds to wait for page loading
-        
+
     def _create_session(self):
         """Create a requests session with retry strategy."""
         session = requests.Session()
@@ -123,49 +121,60 @@ class FinancialReportScraper:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         return session
-        
+
     def _initialize_browser(self):
         """Initialize headless Chrome browser for handling dynamic content."""
         if self.browser is not None:
             return
-            
+
         options = Options()
-        options.add_argument("--headless")  # Run in headless mode
+        options.add_argument("--headless=new")  # Use new headless mode
         options.add_argument("--no-sandbox")  # Required for Docker
         options.add_argument("--disable-dev-shm-usage")  # Required for Docker
         options.add_argument("--disable-gpu")
         options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
         options.add_argument("--window-size=1920,1080")
-        
+
         # Additional options for stability in Docker
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-setuid-sandbox")
-        options.add_argument("--single-process")
         options.add_argument("--disable-features=TranslateUI")
         options.add_argument("--disable-features=VizDisplayCompositor")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--blink-settings=imagesEnabled=false")  # Disable images for faster loading
-        options.add_argument("--disable-javascript")  # Optional: disable JS if not needed
-        
-        # Add proxy settings if needed
-        # if proxy:
-        #     options.add_argument(f'--proxy-server={proxy}')
-        
-        # Check if running in Docker and use appropriate chromedriver path
-        if os.path.exists("/usr/bin/chromedriver"):
-            service = Service("/usr/bin/chromedriver")
-        elif os.path.exists("/usr/bin/chromium-driver"):
-            service = Service("/usr/bin/chromium-driver")
-        else:
-            service = Service()
-            
+
+        # Don't disable JavaScript as it's needed for many modern sites
+        # options.add_argument("--disable-javascript")
+
         try:
-            self.browser = webdriver.Chrome(service=service, options=options)
+            # First try using ChromeDriverManager for automatic driver management
+            try:
+                from webdriver_manager.chrome import ChromeDriverManager
+                from webdriver_manager.core.os_manager import ChromeType
+                service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+                self.browser = webdriver.Chrome(service=service, options=options)
+            except Exception as e:
+                logger.warning(f"Failed to initialize browser with ChromeDriverManager: {str(e)}")
+
+                # Fall back to Docker paths
+                if os.path.exists("/usr/bin/chromedriver"):
+                    service = Service("/usr/bin/chromedriver")
+                elif os.path.exists("/usr/bin/chromium-driver"):
+                    service = Service("/usr/bin/chromium-driver")
+                else:
+                    service = Service()
+
+                self.browser = webdriver.Chrome(service=service, options=options)
+
+            # Set timeouts
             self.browser.set_page_load_timeout(15)  # Reduce timeout to avoid hanging
+            logger.info("Browser initialized successfully")
+
         except Exception as e:
             logger.error(f"Failed to initialize browser: {str(e)}")
             self.use_browser = False
-            
+            logger.warning("Browser automation disabled due to initialization failure")
+
     def _close_browser(self):
         """Close the browser instance."""
         if self.browser:
@@ -175,7 +184,7 @@ class FinancialReportScraper:
                 logger.error(f"Error closing browser: {str(e)}")
             finally:
                 self.browser = None
-    
+
     def _get_random_headers(self):
         """Generate random headers for requests."""
         return {
@@ -188,200 +197,226 @@ class FinancialReportScraper:
             'Cache-Control': 'max-age=0',
             'TE': 'Trailers',
         }
-    
+
     def _random_delay(self):
         """Introduce random delay between requests."""
         time.sleep(random.uniform(*self.delay_range))
-    
+
     def _normalize_url(self, url, base_url):
         """Normalize URL by joining it with base URL if relative."""
         if not url:
             return None
-        
+
         # Handle URLs that start with //
         if url.startswith('//'):
             parsed_base = urlparse(base_url)
             return f"{parsed_base.scheme}:{url}"
-            
+
         # Join relative URLs with base URL
         if not url.startswith(('http://', 'https://')):
             return urljoin(base_url, url)
-            
+
         return url
-    
+
     def _is_valid_url(self, url, base_domain):
         """Check if URL is valid and belongs to the same domain."""
         if not url or not validators.url(url):
             return False
-            
+
         # Skip URLs with unwanted patterns
         if any(pattern in url.lower() for pattern in AVOID_PATTERNS):
             return False
-            
+
         # Check if URL is from the same domain or subdomain
         parsed_url = urlparse(url)
         parsed_base = urlparse(base_domain)
-        
+
         # Get domain parts
         url_domain_parts = parsed_url.netloc.split('.')
         base_domain_parts = parsed_base.netloc.split('.')
-        
+
         # Check if it's the same domain or subdomain
         if len(url_domain_parts) >= 2 and len(base_domain_parts) >= 2:
             url_main_domain = '.'.join(url_domain_parts[-2:])
             base_main_domain = '.'.join(base_domain_parts[-2:])
             return url_main_domain == base_main_domain
-            
+
         return False
-    
+
     def _is_financial_related(self, url, text=None):
         """Check if URL or text is related to financial reports."""
         if not url:
             return False
-            
+
         url_lower = url.lower()
-        
+
         # Check for PDF extension
         if url_lower.endswith('.pdf'):
             return True
-            
+
         # Check for financial keywords in URL
         if any(keyword in url_lower for keyword in FINANCIAL_KEYWORDS):
             return True
-            
+
         # Check for financial sections in URL
-        if any(f"/{section}/" in url_lower or f"/{section}" == url_lower[-len(section)-1:] 
+        if any(f"/{section}/" in url_lower or f"/{section}" == url_lower[-len(section)-1:]
                for section in FINANCIAL_SECTIONS):
             return True
-            
+
         # Check for financial keywords in link text
         if text:
             text_lower = text.lower()
             if any(keyword in text_lower for keyword in FINANCIAL_KEYWORDS):
                 return True
-                
+
         return False
-    
+
     def _is_likely_financial_pdf(self, url, text=None):
         """Check if URL likely points to a financial PDF document."""
         if not url:
             return False
-            
+
         url_lower = url.lower()
-        
+
         # Check for PDF extension
         if not url_lower.endswith('.pdf'):
             return False
-            
+
         # Check for financial PDF keywords in URL or text
         for keyword in PDF_KEYWORDS:
             if keyword in url_lower:
                 return True
-                
+
         if text:
             text_lower = text.lower()
             for keyword in PDF_KEYWORDS:
                 if keyword in text_lower:
                     return True
-                    
+
         return False
-    
+
     def _get_base_domain(self, url):
         """Get base domain from URL."""
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}"
-    
+
     def _get_page_content(self, url):
         """Get page content using either requests or browser depending on settings."""
         # Try with regular requests first
         try:
             with self.semaphore:
                 self._random_delay()
-                response = self.session.get(url, headers=self._get_random_headers(), timeout=10)
-                
+                response = self.session.get(
+                    url,
+                    headers=self._get_random_headers(),
+                    timeout=10,
+                    allow_redirects=True
+                )
+
             if response.status_code != 200:
                 logger.warning(f"Failed to fetch URL: {url}, Status code: {response.status_code}")
                 return None, None
-                
+
             content_type = response.headers.get('Content-Type', '').lower()
-            if 'text/html' not in content_type:
-                # If it's a PDF, check if it's financial related
-                if 'application/pdf' in content_type:
-                    return None, 'pdf'
+
+            # Handle PDFs
+            if 'application/pdf' in content_type:
+                return None, 'pdf'
+
+            # Handle non-HTML content
+            if 'text/html' not in content_type and 'application/xhtml+xml' not in content_type:
                 return None, None
-                
-            # If page has very little content, it might be JavaScript-driven
-            if len(response.text) < 5000 and ('ng-app' in response.text or 'react' in response.text 
-                  or 'vue' in response.text or '<script' in response.text):
+
+            # Check if page is likely JavaScript-driven
+            js_indicators = [
+                'ng-app', 'react', 'vue', 'angular', 'ember',
+                'data-reactroot', 'backbone', 'knockout', 'svelte'
+            ]
+
+            # If page has very little content or contains JS framework indicators
+            if (len(response.text) < 5000 and
+                ('<script' in response.text or any(ind in response.text.lower() for ind in js_indicators))):
                 use_browser = True and self.use_browser
             else:
                 # Return the regular response for static pages
                 return response.text, 'html'
-                
+
         except Exception as e:
             logger.warning(f"Regular request failed for {url}: {str(e)}")
             use_browser = True and self.use_browser
-            
+
         # Fall back to browser for dynamic content if enabled
         if use_browser:
             try:
                 if not self.browser:
                     self._initialize_browser()
-                
+
                 if not self.browser:
                     logger.error("Browser initialization failed")
                     return None, None
-                    
+
                 self._random_delay()
-                
+
                 # Set a timeout for this operation
                 start_time = time.time()
                 max_time = 15  # 15 seconds max
-                
+
                 try:
+                    # Set page load strategy to eager for faster loading
                     self.browser.get(url)
-                    
+
                     # Wait for page to load with timeout
-                    WebDriverWait(self.browser, 5).until(
-                        EC.presence_of_element_located((By.TAG_NAME, "body"))
-                    )
-                    
+                    try:
+                        WebDriverWait(self.browser, 5).until(
+                            EC.presence_of_element_located((By.TAG_NAME, "body"))
+                        )
+                    except TimeoutException:
+                        logger.warning(f"Timeout waiting for body element on {url}")
+                        # Continue anyway, we might have partial content
+
                     # Early return if taking too long
                     if time.time() - start_time > max_time:
                         logger.warning(f"Browser timeout for {url}")
                         return None, None
-                        
+
                     # Get rendered page content
-                    return self.browser.page_source, 'html'
-                    
+                    page_source = self.browser.page_source
+
+                    # Check if we got meaningful content
+                    if page_source and len(page_source) > 500:
+                        return page_source, 'html'
+                    else:
+                        logger.warning(f"Browser returned empty or very small page for {url}")
+                        return None, None
+
                 except (TimeoutException, WebDriverException) as e:
                     logger.error(f"Browser automation error for {url}: {str(e)}")
-                    
+
                     # Try to recover the browser if it crashed
                     try:
                         self._close_browser()
                         self._initialize_browser()
-                    except Exception:
-                        pass
-                        
+                    except Exception as e:
+                        logger.error(f"Failed to recover browser: {str(e)}")
+
                     return None, None
-                    
+
             except Exception as e:
                 logger.error(f"Browser error for {url}: {str(e)}")
                 return None, None
-                
+
         return None, None
-            
+
     def _scrape_page(self, url, depth=0, base_domain=None):
         """Scrape a single page for financial report URLs."""
         if depth > self.max_depth or url in self.visited_urls or len(self.visited_urls) >= self.max_pages_to_scrape:
             return
-            
+
         if not base_domain:
             base_domain = self._get_base_domain(url)
-            
+
         self.visited_urls.add(url)
-        
+
         try:
             # Add basic error handling and timeouts
             try:
@@ -389,15 +424,15 @@ class FinancialReportScraper:
             except Exception as e:
                 logger.warning(f"Failed to get content for {url}: {str(e)}")
                 return
-                
+
             if content_type == 'pdf':
                 if self._is_financial_related(url):
                     self.confirmed_pdf_urls.append(url)
                 return
-                
+
             if not page_content:
                 return
-                
+
             # Try to extract links
             try:
                 soup = BeautifulSoup(page_content, 'html.parser')
@@ -405,55 +440,55 @@ class FinancialReportScraper:
             except Exception as e:
                 logger.warning(f"Failed to parse HTML for {url}: {str(e)}")
                 return
-                
+
             # Don't process too many links from a single page
             link_limit = 100
             if len(links) > link_limit:
                 logger.info(f"Limiting links on {url} from {len(links)} to {link_limit}")
                 import random
                 links = random.sample(links, link_limit)
-            
+
             # Extract all links from the page
             for link in links:
                 try:
                     href = link.get('href')
                     text = link.get_text(strip=True)
-                    
+
                     # Normalize URL
                     normalized_url = self._normalize_url(href, url)
-                    
+
                     # Skip invalid URLs
                     if not normalized_url or not self._is_valid_url(normalized_url, base_domain):
                         continue
-                        
+
                     # Check if link is likely a financial PDF
                     if self._is_likely_financial_pdf(normalized_url, text):
                         self.probable_pdf_urls.append({
                             'url': normalized_url,
                             'text': text
                         })
-                        
+
                     # Check if link is related to financial reports
                     if self._is_financial_related(normalized_url, text):
                         self.financial_urls.append({
                             'url': normalized_url,
                             'text': text
                         })
-                        
+
                         # Recursively scrape financial-related pages
                         if depth < self.max_depth and normalized_url not in self.visited_urls:
                             # Prevent excessive crawling
                             if len(self.visited_urls) < self.max_pages_to_scrape:
                                 self._scrape_page(normalized_url, depth + 1, base_domain)
-                            
+
                 except Exception as e:
                     # Continue processing other links if one fails
                     logger.debug(f"Error processing link: {str(e)}")
                     continue
-                    
+
         except Exception as e:
             logger.error(f"Error scraping {url}: {str(e)}")
-    
+
     def scrape_website(self, company_url, use_browser=True):
         """Scrape a company website for financial report URLs."""
         # Reset state
@@ -462,44 +497,44 @@ class FinancialReportScraper:
         self.probable_pdf_urls = []
         self.confirmed_pdf_urls = []
         self.use_browser = use_browser
-        
+
         if self.use_browser:
             self._initialize_browser()
-        
+
         try:
             # Normalize company URL
             if not company_url.startswith(('http://', 'https://')):
                 company_url = f"https://{company_url}"
-                
+
             # Start with the home page
             self._scrape_page(company_url)
-            
+
             # Look for investor relations or financial sections
             base_domain = self._get_base_domain(company_url)
-            
+
             # Try to find investor relations or financial sections
             for section in FINANCIAL_SECTIONS:
                 section_url = f"{base_domain}/{section}"
                 if section_url not in self.visited_urls:
                     self._scrape_page(section_url, base_domain=base_domain)
-                    
+
             # Check if we found any financial PDFs
             for url_info in self.financial_urls:
                 url = url_info['url']
                 text = url_info['text']
-                
+
                 # Check if it's a confirmed PDF
                 if url.lower().endswith('.pdf'):
                     self.confirmed_pdf_urls.append(url)
                     continue
-                    
+
                 # Check if it's a potential PDF container
                 if self._is_likely_financial_pdf(url, text):
                     self.probable_pdf_urls.append({
                         'url': url,
                         'text': text
                     })
-                    
+
             # Verify probable PDFs
             verified_pdfs = []
             for pdf_info in self.probable_pdf_urls:
@@ -509,26 +544,26 @@ class FinancialReportScraper:
                         with self.semaphore:
                             self._random_delay()
                             response = self.session.head(pdf_url, headers=self._get_random_headers(), timeout=5)
-                            
+
                         content_type = response.headers.get('Content-Type', '').lower()
                         if 'application/pdf' in content_type:
                             verified_pdfs.append(pdf_url)
-                            
+
                     except Exception as e:
                         logger.error(f"Error verifying PDF {pdf_url}: {str(e)}")
-                        
+
             self.confirmed_pdf_urls.extend(verified_pdfs)
-            
+
             # Extract unique results
             unique_financial_urls = []
             seen_urls = set()
-            
+
             for url_info in self.financial_urls:
                 url = url_info['url']
                 if url not in seen_urls:
                     seen_urls.add(url)
                     unique_financial_urls.append(url_info)
-                    
+
             return {
                 'confirmed_pdf_urls': list(set(self.confirmed_pdf_urls)),
                 'financial_urls': unique_financial_urls
@@ -542,35 +577,38 @@ class FinancialReportScraper:
 @app.route('/scrape', methods=['POST'])
 def scrape():
     data = request.get_json()
-    
+
     if not data:
         return jsonify({'error': 'Missing request data'}), 400
-        
+
     if 'company_url' not in data:
         return jsonify({'error': 'Missing company_url parameter'}), 400
-        
+
     company_url = data['company_url']
-    
+
     # Optional parameters
     max_pages = data.get('max_pages', 100)  # Reduced from 150
     max_depth = data.get('max_depth', 3)  # Reduced from 4
     use_browser = data.get('use_browser', False)  # Default to False for stability
-    
+
     try:
-        # Set timeout for the request
-        timeout = time.time() + 240  # 4 minute timeout
-        
+        # Create scraper with optimized settings
         scraper = FinancialReportScraper()
         scraper.max_pages_to_scrape = max_pages
         scraper.max_depth = max_depth
         scraper.delay_range = (0.2, 0.5)  # Faster delays
-        
+
         # First try without browser
         logger.info(f"Starting scrape for {company_url}")
-        
+
         try:
+            # Normalize company URL if needed
+            if not company_url.startswith(('http://', 'https://')):
+                company_url = f"https://{company_url}"
+
+            # First attempt without browser
             result = scraper.scrape_website(company_url, use_browser=False)
-            
+
             # If we found PDFs, return them
             if len(result['confirmed_pdf_urls']) > 0:
                 logger.info(f"Found {len(result['confirmed_pdf_urls'])} PDFs without browser")
@@ -578,7 +616,7 @@ def scrape():
             elif use_browser and len(result['financial_urls']) > 0:
                 logger.info("Trying with browser automation")
                 result = scraper.scrape_website(company_url, use_browser=True)
-            
+
             # Format results
             financial_pages = []
             for item in result['financial_urls']:
@@ -589,7 +627,8 @@ def scrape():
                     'text': text,
                     'is_pdf': url.lower().endswith('.pdf')
                 })
-            
+
+            # Return successful response
             return jsonify({
                 'company_url': company_url,
                 'confirmed_pdf_urls': result['confirmed_pdf_urls'],
@@ -598,40 +637,59 @@ def scrape():
                     'total_pages_scraped': len(scraper.visited_urls),
                     'total_financial_urls': len(result['financial_urls']),
                     'total_confirmed_pdfs': len(result['confirmed_pdf_urls']),
-                    'used_browser_automation': use_browser
+                    'used_browser_automation': use_browser,
+                    'status': 'success'
                 }
             })
-            
+
         except Exception as e:
-            logger.error(f"Error during scraping: {str(e)}")
-            return jsonify({'error': str(e)}), 500
-            
+            logger.error(f"Error during scraping: {str(e)}", exc_info=True)
+            return jsonify({
+                'error': str(e),
+                'company_url': company_url,
+                'status': 'error',
+                'message': 'Failed to scrape website'
+            }), 500
+
     except Exception as e:
-        logger.error(f"Error processing request: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error processing request: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': str(e),
+            'status': 'error',
+            'message': 'Failed to process request'
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health():
-    # More detailed health check
+    """Health check endpoint to verify the service is running."""
+    # Basic health check information
     status = {
         'status': 'healthy',
         'time': time.time(),
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'service': 'financial-report-scraper',
         'memory_usage': {
             'active': 'unknown'
         }
     }
-    
+
     # Try to get memory info if possible
     try:
         import psutil
         process = psutil.Process(os.getpid())
         status['memory_usage'] = {
-            'active': process.memory_info().rss / 1024 / 1024,  # MB
-            'percent': process.memory_percent()
+            'active': round(process.memory_info().rss / 1024 / 1024, 2),  # MB
+            'percent': round(process.memory_percent(), 2)
         }
-    except ImportError:
-        pass
-        
+    except (ImportError, Exception) as e:
+        status['memory_usage']['error'] = str(e)
+
+    # Add system information
+    status['system'] = {
+        'python_version': os.sys.version,
+        'platform': os.sys.platform
+    }
+
     return jsonify(status), 200
 
 
