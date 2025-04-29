@@ -1,0 +1,22 @@
+version: '3.7'
+services:
+  scraper:
+    build: ./scraper
+    container_name: n8n-scraper
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - n8n-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+networks:
+  n8n-network:
+    external: true

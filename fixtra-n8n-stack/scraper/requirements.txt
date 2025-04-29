@@ -1,0 +1,6 @@
+flask==2.3.3
+requests==2.31.0
+# Add other packages you might need for scraping
+# beautifulsoup4==4.12.2
+# selenium==4.11.2
+# scrapy==2.10.0
