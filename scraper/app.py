@@ -10,7 +10,8 @@ import concurrent.futures
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import validators
-from fake_useragent import UserAgent
+# Replace fake_useragent with a static list of user agents
+# from fake_useragent import UserAgent
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -28,6 +29,20 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# List of common user agents to rotate
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36 Edg/91.0.864.48',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:89.0) Gecko/20100101 Firefox/89.0'
+]
 
 # Financial keywords to identify relevant pages
 FINANCIAL_KEYWORDS = [
@@ -82,7 +97,7 @@ AVOID_PATTERNS = [
 class FinancialReportScraper:
     def __init__(self):
         self.session = self._create_session()
-        self.ua = UserAgent()
+        # Use static user agent list instead of fake_useragent
         self.visited_urls = set()
         self.financial_urls = []
         self.probable_pdf_urls = []
@@ -119,8 +134,18 @@ class FinancialReportScraper:
         options.add_argument("--no-sandbox")  # Required for Docker
         options.add_argument("--disable-dev-shm-usage")  # Required for Docker
         options.add_argument("--disable-gpu")
-        options.add_argument(f"user-agent={self.ua.random}")
+        options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
         options.add_argument("--window-size=1920,1080")
+        
+        # Additional options for stability in Docker
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-setuid-sandbox")
+        options.add_argument("--single-process")
+        options.add_argument("--disable-features=TranslateUI")
+        options.add_argument("--disable-features=VizDisplayCompositor")
+        options.add_argument("--disable-popup-blocking")
+        options.add_argument("--blink-settings=imagesEnabled=false")  # Disable images for faster loading
+        options.add_argument("--disable-javascript")  # Optional: disable JS if not needed
         
         # Add proxy settings if needed
         # if proxy:
@@ -129,12 +154,14 @@ class FinancialReportScraper:
         # Check if running in Docker and use appropriate chromedriver path
         if os.path.exists("/usr/bin/chromedriver"):
             service = Service("/usr/bin/chromedriver")
+        elif os.path.exists("/usr/bin/chromium-driver"):
+            service = Service("/usr/bin/chromium-driver")
         else:
             service = Service()
             
         try:
             self.browser = webdriver.Chrome(service=service, options=options)
-            self.browser.set_page_load_timeout(30)  # Set page load timeout
+            self.browser.set_page_load_timeout(15)  # Reduce timeout to avoid hanging
         except Exception as e:
             logger.error(f"Failed to initialize browser: {str(e)}")
             self.use_browser = False
@@ -152,7 +179,7 @@ class FinancialReportScraper:
     def _get_random_headers(self):
         """Generate random headers for requests."""
         return {
-            'User-Agent': self.ua.random,
+            'User-Agent': random.choice(USER_AGENTS),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -286,17 +313,17 @@ class FinancialReportScraper:
             # If page has very little content, it might be JavaScript-driven
             if len(response.text) < 5000 and ('ng-app' in response.text or 'react' in response.text 
                   or 'vue' in response.text or '<script' in response.text):
-                use_browser = True
+                use_browser = True and self.use_browser
             else:
                 # Return the regular response for static pages
                 return response.text, 'html'
                 
         except Exception as e:
             logger.warning(f"Regular request failed for {url}: {str(e)}")
-            use_browser = True
+            use_browser = True and self.use_browser
             
         # Fall back to browser for dynamic content if enabled
-        if self.use_browser and use_browser:
+        if use_browser:
             try:
                 if not self.browser:
                     self._initialize_browser()
@@ -306,21 +333,41 @@ class FinancialReportScraper:
                     return None, None
                     
                 self._random_delay()
-                self.browser.get(url)
                 
-                # Wait for page to load
-                WebDriverWait(self.browser, self.browser_wait_time).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "body"))
-                )
+                # Set a timeout for this operation
+                start_time = time.time()
+                max_time = 15  # 15 seconds max
                 
-                # Additional wait for dynamic content to load
-                time.sleep(2)
-                
-                # Get rendered page content
-                return self.browser.page_source, 'html'
-                
-            except (TimeoutException, WebDriverException) as e:
-                logger.error(f"Browser automation error for {url}: {str(e)}")
+                try:
+                    self.browser.get(url)
+                    
+                    # Wait for page to load with timeout
+                    WebDriverWait(self.browser, 5).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
+                    
+                    # Early return if taking too long
+                    if time.time() - start_time > max_time:
+                        logger.warning(f"Browser timeout for {url}")
+                        return None, None
+                        
+                    # Get rendered page content
+                    return self.browser.page_source, 'html'
+                    
+                except (TimeoutException, WebDriverException) as e:
+                    logger.error(f"Browser automation error for {url}: {str(e)}")
+                    
+                    # Try to recover the browser if it crashed
+                    try:
+                        self._close_browser()
+                        self._initialize_browser()
+                    except Exception:
+                        pass
+                        
+                    return None, None
+                    
+            except Exception as e:
+                logger.error(f"Browser error for {url}: {str(e)}")
                 return None, None
                 
         return None, None
@@ -336,8 +383,13 @@ class FinancialReportScraper:
         self.visited_urls.add(url)
         
         try:
-            page_content, content_type = self._get_page_content(url)
-            
+            # Add basic error handling and timeouts
+            try:
+                page_content, content_type = self._get_page_content(url)
+            except Exception as e:
+                logger.warning(f"Failed to get content for {url}: {str(e)}")
+                return
+                
             if content_type == 'pdf':
                 if self._is_financial_related(url):
                     self.confirmed_pdf_urls.append(url)
@@ -346,38 +398,59 @@ class FinancialReportScraper:
             if not page_content:
                 return
                 
-            soup = BeautifulSoup(page_content, 'html.parser')
+            # Try to extract links
+            try:
+                soup = BeautifulSoup(page_content, 'html.parser')
+                links = soup.find_all('a', href=True)
+            except Exception as e:
+                logger.warning(f"Failed to parse HTML for {url}: {str(e)}")
+                return
+                
+            # Don't process too many links from a single page
+            link_limit = 100
+            if len(links) > link_limit:
+                logger.info(f"Limiting links on {url} from {len(links)} to {link_limit}")
+                import random
+                links = random.sample(links, link_limit)
             
             # Extract all links from the page
-            for link in soup.find_all('a', href=True):
-                href = link.get('href')
-                text = link.get_text(strip=True)
-                
-                # Normalize URL
-                normalized_url = self._normalize_url(href, url)
-                
-                # Skip invalid URLs
-                if not normalized_url or not self._is_valid_url(normalized_url, base_domain):
+            for link in links:
+                try:
+                    href = link.get('href')
+                    text = link.get_text(strip=True)
+                    
+                    # Normalize URL
+                    normalized_url = self._normalize_url(href, url)
+                    
+                    # Skip invalid URLs
+                    if not normalized_url or not self._is_valid_url(normalized_url, base_domain):
+                        continue
+                        
+                    # Check if link is likely a financial PDF
+                    if self._is_likely_financial_pdf(normalized_url, text):
+                        self.probable_pdf_urls.append({
+                            'url': normalized_url,
+                            'text': text
+                        })
+                        
+                    # Check if link is related to financial reports
+                    if self._is_financial_related(normalized_url, text):
+                        self.financial_urls.append({
+                            'url': normalized_url,
+                            'text': text
+                        })
+                        
+                        # Recursively scrape financial-related pages
+                        if depth < self.max_depth and normalized_url not in self.visited_urls:
+                            # Prevent excessive crawling
+                            if len(self.visited_urls) < self.max_pages_to_scrape:
+                                self._scrape_page(normalized_url, depth + 1, base_domain)
+                            
+                except Exception as e:
+                    # Continue processing other links if one fails
+                    logger.debug(f"Error processing link: {str(e)}")
                     continue
                     
-                # Check if link is likely a financial PDF
-                if self._is_likely_financial_pdf(normalized_url, text):
-                    self.probable_pdf_urls.append({
-                        'url': normalized_url,
-                        'text': text
-                    })
-                    
-                # Check if link is related to financial reports
-                if self._is_financial_related(normalized_url, text):
-                    self.financial_urls.append({
-                        'url': normalized_url,
-                        'text': text
-                    })
-                    
-                    # Recursively scrape financial-related pages
-                    if depth < self.max_depth and normalized_url not in self.visited_urls:
-                        self._scrape_page(normalized_url, depth + 1, base_domain)
-                        
         except Exception as e:
             logger.error(f"Error scraping {url}: {str(e)}")
     
@@ -479,47 +552,87 @@ def scrape():
     company_url = data['company_url']
     
     # Optional parameters
-    max_pages = data.get('max_pages', 150)
-    max_depth = data.get('max_depth', 4)
-    use_browser = data.get('use_browser', True)  # Whether to use browser automation
+    max_pages = data.get('max_pages', 100)  # Reduced from 150
+    max_depth = data.get('max_depth', 3)  # Reduced from 4
+    use_browser = data.get('use_browser', False)  # Default to False for stability
     
     try:
+        # Set timeout for the request
+        timeout = time.time() + 240  # 4 minute timeout
+        
         scraper = FinancialReportScraper()
         scraper.max_pages_to_scrape = max_pages
         scraper.max_depth = max_depth
+        scraper.delay_range = (0.2, 0.5)  # Faster delays
         
-        result = scraper.scrape_website(company_url, use_browser=use_browser)
+        # First try without browser
+        logger.info(f"Starting scrape for {company_url}")
         
-        # Format results
-        financial_pages = []
-        for item in result['financial_urls']:
-            url = item['url']
-            text = item.get('text', '')
-            financial_pages.append({
-                'url': url,
-                'text': text,
-                'is_pdf': url.lower().endswith('.pdf')
+        try:
+            result = scraper.scrape_website(company_url, use_browser=False)
+            
+            # If we found PDFs, return them
+            if len(result['confirmed_pdf_urls']) > 0:
+                logger.info(f"Found {len(result['confirmed_pdf_urls'])} PDFs without browser")
+            # If no PDFs found and browser use is requested, try with browser
+            elif use_browser and len(result['financial_urls']) > 0:
+                logger.info("Trying with browser automation")
+                result = scraper.scrape_website(company_url, use_browser=True)
+            
+            # Format results
+            financial_pages = []
+            for item in result['financial_urls']:
+                url = item['url']
+                text = item.get('text', '')
+                financial_pages.append({
+                    'url': url,
+                    'text': text,
+                    'is_pdf': url.lower().endswith('.pdf')
+                })
+            
+            return jsonify({
+                'company_url': company_url,
+                'confirmed_pdf_urls': result['confirmed_pdf_urls'],
+                'financial_pages': financial_pages,
+                'metadata': {
+                    'total_pages_scraped': len(scraper.visited_urls),
+                    'total_financial_urls': len(result['financial_urls']),
+                    'total_confirmed_pdfs': len(result['confirmed_pdf_urls']),
+                    'used_browser_automation': use_browser
+                }
             })
-        
-        return jsonify({
-            'company_url': company_url,
-            'confirmed_pdf_urls': result['confirmed_pdf_urls'],
-            'financial_pages': financial_pages,
-            'metadata': {
-                'total_pages_scraped': len(scraper.visited_urls),
-                'total_financial_urls': len(result['financial_urls']),
-                'total_confirmed_pdfs': len(result['confirmed_pdf_urls']),
-                'used_browser_automation': use_browser
-            }
-        })
-        
+            
+        except Exception as e:
+            logger.error(f"Error during scraping: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+            
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'healthy'}), 200
+    # More detailed health check
+    status = {
+        'status': 'healthy',
+        'time': time.time(),
+        'memory_usage': {
+            'active': 'unknown'
+        }
+    }
+    
+    # Try to get memory info if possible
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        status['memory_usage'] = {
+            'active': process.memory_info().rss / 1024 / 1024,  # MB
+            'percent': process.memory_percent()
+        }
+    except ImportError:
+        pass
+        
+    return jsonify(status), 200
 
 
 if __name__ == '__main__':
