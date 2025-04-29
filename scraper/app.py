@@ -5,9 +5,9 @@ import time
 import random
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-import concurrent.futures
+import threading
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry  # Fixed import path
+from urllib3.util.retry import Retry
 import validators
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -17,7 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 import os
-from webdriver_manager.chrome import ChromeDriverManager  # For automatic chromedriver management
+import sys
 
 app = Flask(__name__)
 
@@ -103,7 +103,7 @@ class FinancialReportScraper:
         self.max_pages_to_scrape = 150  # Limit to avoid infinite crawling
         self.max_depth = 4  # Maximum depth for crawling
         self.delay_range = (0.5, 2.0)  # Random delay between requests
-        self.semaphore = concurrent.futures.Semaphore(5)  # Limit concurrent requests
+        self.semaphore = threading.Semaphore(5)  # Limit concurrent requests - fixed import
         self.use_browser = True  # Whether to use browser automation for dynamic content
         self.browser = None
         self.browser_wait_time = 5  # Seconds to wait for page loading
@@ -128,7 +128,7 @@ class FinancialReportScraper:
             return
 
         options = Options()
-        options.add_argument("--headless=new")  # Use new headless mode
+        options.add_argument("--headless")  # Headless mode
         options.add_argument("--no-sandbox")  # Required for Docker
         options.add_argument("--disable-dev-shm-usage")  # Required for Docker
         options.add_argument("--disable-gpu")
@@ -139,34 +139,19 @@ class FinancialReportScraper:
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-setuid-sandbox")
         options.add_argument("--disable-features=TranslateUI")
-        options.add_argument("--disable-features=VizDisplayCompositor")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--blink-settings=imagesEnabled=false")  # Disable images for faster loading
 
-        # Don't disable JavaScript as it's needed for many modern sites
-        # options.add_argument("--disable-javascript")
-
         try:
-            # First try using ChromeDriverManager for automatic driver management
-            try:
-                from webdriver_manager.chrome import ChromeDriverManager
-                from webdriver_manager.core.os_manager import ChromeType
-                service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
-                self.browser = webdriver.Chrome(service=service, options=options)
-            except Exception as e:
-                logger.warning(f"Failed to initialize browser with ChromeDriverManager: {str(e)}")
+            # Try to find chromedriver in Docker paths
+            if os.path.exists("/usr/bin/chromedriver"):
+                service = Service("/usr/bin/chromedriver")
+            elif os.path.exists("/usr/bin/chromium-driver"):
+                service = Service("/usr/bin/chromium-driver")
+            else:
+                service = Service()
 
-                # Fall back to Docker paths
-                if os.path.exists("/usr/bin/chromedriver"):
-                    service = Service("/usr/bin/chromedriver")
-                elif os.path.exists("/usr/bin/chromium-driver"):
-                    service = Service("/usr/bin/chromium-driver")
-                else:
-                    service = Service()
-
-                self.browser = webdriver.Chrome(service=service, options=options)
-
-            # Set timeouts
+            self.browser = webdriver.Chrome(service=service, options=options)
             self.browser.set_page_load_timeout(15)  # Reduce timeout to avoid hanging
             logger.info("Browser initialized successfully")
 
@@ -686,8 +671,8 @@ def health():
 
     # Add system information
     status['system'] = {
-        'python_version': os.sys.version,
-        'platform': os.sys.platform
+        'python_version': sys.version,
+        'platform': sys.platform
     }
 
     return jsonify(status), 200
