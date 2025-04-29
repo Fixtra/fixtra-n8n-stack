@@ -10,7 +10,7 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - n8n-network
+      - fixtra-n8n-stack_n8n-network
     logging:
       driver: "json-file"
       options:
@@ -18,5 +18,5 @@ services:
         max-file: "3"
 
 networks:
-  n8n-network:
+  fixtra-n8n-stack_n8n-network:
     external: true
