@@ -60,7 +60,7 @@ services:
     restart: always
     depends_on: *langfuse-depends-on
     ports:
-      - 3000:3000
+      - "127.0.0.1:3000:3000"  # Restrict to localhost for security
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_URL: https://wizardengine.fixtra.io/langfuse
