@@ -1,0 +1,10 @@
+FROM n8nio/n8n:latest
+
+USER root
+# Install Langfuse globally
+RUN npm install -g langfuse
+
+# Set environment variable to allow Langfuse in Code nodes
+ENV CODE_NODES_MODULES=langfuse
+
+USER node
