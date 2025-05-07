@@ -58,6 +58,7 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - EXECUTIONS_MODE=queue
+      - CODE_NODES_MODULES=langfuse
     volumes:
       - ./n8n_data:/home/node/.n8n
     depends_on:
@@ -91,6 +92,7 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - EXECUTIONS_MODE=queue
+      - CODE_NODES_MODULES=langfuse
     volumes:
       - ./n8n_data:/home/node/.n8n
     depends_on:
@@ -124,6 +126,7 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - EXECUTIONS_MODE=queue
+      - CODE_NODES_MODULES=langfuse
     volumes:
       - ./n8n_data:/home/node/.n8n
     depends_on:
