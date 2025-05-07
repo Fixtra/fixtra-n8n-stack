@@ -4,6 +4,7 @@ services:
     image: n8nio/n8n
     container_name: n8n-main
     restart: always
+    entrypoint: ["/home/node/.n8n/custom-startup.sh"]
     ports:
       - "127.0.0.1:5678:5678"
     env_file:
@@ -41,6 +42,7 @@ services:
     image: n8nio/n8n
     container_name: n8n-worker-1
     restart: always
+    entrypoint: ["/home/node/.n8n/custom-startup.sh"]
     command: worker
     env_file:
       - .env
@@ -73,6 +75,7 @@ services:
     image: n8nio/n8n
     container_name: n8n-worker-2
     restart: always
+    entrypoint: ["/home/node/.n8n/custom-startup.sh"]
     command: worker
     env_file:
       - .env
@@ -105,6 +108,7 @@ services:
     image: n8nio/n8n
     container_name: n8n-worker-3
     restart: always
+    entrypoint: ["/home/node/.n8n/custom-startup.sh"]
     command: worker
     env_file:
       - .env
