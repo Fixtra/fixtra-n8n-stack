@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   n8n:
-    image: n8nio/n8n
+    image: n8n-with-langfuse
     container_name: n8n-main
     restart: always
     entrypoint: ["/home/node/.n8n/custom-startup.sh"]
@@ -20,6 +20,7 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - EXECUTIONS_MODE=queue
+      - CODE_NODES_MODULES=langfuse
     volumes:
       - ./n8n_data:/home/node/.n8n
     depends_on:
@@ -39,7 +40,7 @@ services:
         max-file: "3"
 
   n8n-worker-1:
-    image: n8nio/n8n
+    image: n8n-with-langfuse
     container_name: n8n-worker-1
     restart: always
     entrypoint: ["/home/node/.n8n/custom-startup.sh"]
@@ -72,7 +73,7 @@ services:
         max-file: "3"
 
   n8n-worker-2:
-    image: n8nio/n8n
+    image: n8n-with-langfuse
     container_name: n8n-worker-2
     restart: always
     entrypoint: ["/home/node/.n8n/custom-startup.sh"]
@@ -105,7 +106,7 @@ services:
         max-file: "3"
 
   n8n-worker-3:
-    image: n8nio/n8n
+    image: n8n-with-langfuse
     container_name: n8n-worker-3
     restart: always
     entrypoint: ["/home/node/.n8n/custom-startup.sh"]
