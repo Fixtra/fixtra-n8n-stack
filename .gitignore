@@ -102,3 +102,16 @@ dist
 
 # TernJS port file
 .tern-portredis_data/
+
+# Data directories
+backups/
+n8n_data/
+redis_data/
+scraper_backup/
+docker-build/
+
+# Sensitive information
+.env
+
+# Backup files
+*.backup
