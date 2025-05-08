@@ -115,3 +115,4 @@ docker-build/
 
 # Backup files
 *.backup
+.env
