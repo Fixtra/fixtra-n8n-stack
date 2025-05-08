@@ -4,11 +4,41 @@ services:
     build: ./scraper
     container_name: n8n-scraper
     restart: always
+    environment:
+      - DB_NAME=financial_files
+      - DB_USER=postgres
+      - DB_PASSWORD=scraper_secret_password
+      - DB_HOST=scraper-postgres
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      - scraper-postgres
+    networks:
+      - fixtra-n8n-stack_n8n-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    volumes:
+      - scraper_data:/app/data
+
+  scraper-postgres:
+    image: postgres:15
+    container_name: n8n-scraper-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: scraper_secret_password
+      POSTGRES_DB: financial_files
+    volumes:
+      - scraper_postgres_data:/var/lib/postgresql/data
     networks:
       - fixtra-n8n-stack_n8n-network
     logging:
@@ -20,3 +50,7 @@ services:
 networks:
   fixtra-n8n-stack_n8n-network:
     external: true
+
+volumes:
+  scraper_postgres_data:
+  scraper_data:
