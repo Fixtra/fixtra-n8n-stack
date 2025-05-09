@@ -79,27 +79,41 @@ services:
       - fixtra-n8n-stack_n8n-network
 
   clickhouse:
-    image: clickhouse/clickhouse-server
-    restart: always
-    user: "101:101"
-    environment:
-      CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: clickhouse
-      CLICKHOUSE_PASSWORD: clickhouse
-    volumes:
-      - langfuse_clickhouse_data:/var/lib/clickhouse
-      - langfuse_clickhouse_logs:/var/log/clickhouse-server
-    ports:
-      - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 1s
-    networks:
-      - fixtra-n8n-stack_n8n-network
+  image: clickhouse/clickhouse-server
+  restart: always
+  user: "101:101"
+  environment:
+    CLICKHOUSE_DB: default
+    CLICKHOUSE_USER: clickhouse
+    CLICKHOUSE_PASSWORD: clickhouse
+    # Add these memory limit configurations
+    MAX_MEMORY_USAGE: "1073741824"  # 1GB
+    MAX_MEMORY_USAGE_FOR_USER: "1073741824"
+    MAX_SERVER_MEMORY_USAGE: "1073741824"
+    # Reduce background operations
+    MERGE_TREE_THREADS: "2"
+    BACKGROUND_POOL_SIZE: "2"
+    BACKGROUND_SCHEDULE_POOL_SIZE: "2"
+  # Add resource limits
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: "1.5G"
+  volumes:
+    - langfuse_clickhouse_data:/var/lib/clickhouse
+    - langfuse_clickhouse_logs:/var/log/clickhouse-server
+  ports:
+    - 127.0.0.1:8123:8123
+    - 127.0.0.1:9000:9000
+  healthcheck:
+    test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+    interval: 5s
+    timeout: 5s
+    retries: 10
+    start_period: 1s
+  networks:
+    - fixtra-n8n-stack_n8n-network
 
   minio:
     image: minio/minio
