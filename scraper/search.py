@@ -3,6 +3,7 @@ from config import SERPAPI_API_KEY
 from models import insert_or_update_pdf_data
 import json
 import urllib.parse
+from datetime import datetime
 
 def save_results_to_json(company_name, search_results, filename="results.json"):
     data = {
@@ -15,7 +16,9 @@ def save_results_to_json(company_name, search_results, filename="results.json"):
 def search_financial_statement(company_name):
     print(f"🔍 Searching for: {company_name}")
 
-    query = f"{company_name} financial statement 2024 filetype:pdf"
+    year = datetime.now().year - 1
+
+    query = f"{company_name} annual report {year} filetype:pdf"
     params = {
         "engine": "google",
         "q": query,
