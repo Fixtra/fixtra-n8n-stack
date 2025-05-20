@@ -19,6 +19,7 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - EXECUTIONS_MODE=queue
+      - N8N_TRUST_PROXY_HEADER=true
     volumes:
       - ./n8n_data:/home/node/.n8n
     depends_on:
