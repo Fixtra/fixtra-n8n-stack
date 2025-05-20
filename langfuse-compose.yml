@@ -90,9 +90,9 @@ services:
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
       # Memory limits - INCREASE THESE VALUES
-      MAX_MEMORY_USAGE: "2048M"  # Increased to 2GB
-      MAX_MEMORY_USAGE_FOR_USER: "2048M"
-      MAX_SERVER_MEMORY_USAGE: "2560M"  # Increased to 2.5GB
+      MAX_MEMORY_USAGE: "1024M"  # Reduce from 2048M to 1024M
+      MAX_MEMORY_USAGE_FOR_USER: "1024M"
+      MAX_SERVER_MEMORY_USAGE: "1280M"  # Reduce from 2560M to 1280M
       # Thread and background operations
       MERGE_TREE_THREADS: "1"
       BACKGROUND_POOL_SIZE: "1"
@@ -109,8 +109,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.75"
-          memory: "3G"
+          cpus: "0.5"
+          memory: "1.5G"
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
