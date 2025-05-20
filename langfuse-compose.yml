@@ -89,14 +89,14 @@ services:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
-      # Memory limits
-      MAX_MEMORY_USAGE: "512M"  # Reduced from 1GB
-      MAX_MEMORY_USAGE_FOR_USER: "512M"
-      MAX_SERVER_MEMORY_USAGE: "768M"  # Allow overhead but still under container limit
+      # Memory limits - INCREASE THESE VALUES
+      MAX_MEMORY_USAGE: "1536M"  # Increased from 512M to 1.5GB
+      MAX_MEMORY_USAGE_FOR_USER: "1536M"
+      MAX_SERVER_MEMORY_USAGE: "1792M"  # Increased to allow overhead
       # Thread and background operations
-      MERGE_TREE_THREADS: "1"  # Reduced from 2
-      BACKGROUND_POOL_SIZE: "1"  # Reduced from 2
-      BACKGROUND_SCHEDULE_POOL_SIZE: "1"  # Reduced from 2
+      MERGE_TREE_THREADS: "1"
+      BACKGROUND_POOL_SIZE: "1"
+      BACKGROUND_SCHEDULE_POOL_SIZE: "1"
       # Add query execution limits
       MAX_EXECUTION_TIME: "30"  # 30 seconds max query time
       MAX_CONCURRENT_QUERIES: "5"
@@ -109,8 +109,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"  # Reduced from 1.0
-          memory: "1G"  # Reduced from 1.5G
+          cpus: "0.5"
+          memory: "2G"
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
