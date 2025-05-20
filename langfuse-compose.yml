@@ -82,7 +82,7 @@ services:
 
   clickhouse:
     container_name: langfuse-clickhouse
-    image: clickhouse/clickhouse-server
+    image: clickhouse/clickhouse-server:25-alpine
     restart: always
     user: "101:101"
     environment:
@@ -128,7 +128,7 @@ services:
 
   minio:
     container_name: langfuse-minio
-    image: minio/minio
+    image: minio/minio:latest
     restart: always
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -151,7 +151,7 @@ services:
 
   langfuse-redis:
     container_name: langfuse-redis
-    image: redis:7
+    image: redis:8-alpine
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
@@ -169,7 +169,7 @@ services:
 
   langfuse-postgres:
     container_name: langfuse-postgres
-    image: postgres:${POSTGRES_VERSION:-latest}
+    image: postgres:17-alpine
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

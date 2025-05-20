@@ -134,7 +134,7 @@ services:
         max-file: "3"
 
   postgres:
-    image: postgres:17
+    image: postgres:17-alpine
     container_name: n8n-postgres
     restart: always
     environment:
@@ -157,7 +157,7 @@ services:
         max-file: "3"
 
   redis:
-    image: redis:6-alpine
+    image: redis:8-alpine
     container_name: n8n-redis
     restart: always
     command: redis-server --requirepass ${REDIS_PASSWORD}
