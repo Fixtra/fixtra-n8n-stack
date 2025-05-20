@@ -146,7 +146,6 @@ services:
       - fixtra-n8n-stack_n8n-network
 
   langfuse-redis:
-    container_name: langfuse-redis
     image: redis:8-alpine
     restart: always
     command: >
