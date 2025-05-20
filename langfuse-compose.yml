@@ -82,7 +82,7 @@ services:
 
   clickhouse:
     container_name: langfuse-clickhouse
-    image: clickhouse/clickhouse-server:25.4-alpine
+    image: clickhouse/clickhouse-server:latest
     restart: always
     user: "101:101"
     environment:
