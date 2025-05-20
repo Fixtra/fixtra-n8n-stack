@@ -146,7 +146,11 @@ services:
       - fixtra-n8n-stack_n8n-network
 
   langfuse-redis:
-    image: redis:7
+<<<<<<< HEAD
+=======
+    container_name: langfuse-redis
+    image: redis:8-alpine
+>>>>>>> c1568c7 (redis8-alpine)
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
