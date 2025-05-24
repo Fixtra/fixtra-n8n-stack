@@ -107,7 +107,7 @@ services:
       resources:
         limits:
           cpus: "0.5" # Reduced from 1.0
-          memory: "1G" # Reduced from 1.5G
+          memory: "1.5G" # Reduced from 1.5G
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
