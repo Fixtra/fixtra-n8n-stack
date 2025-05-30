@@ -86,19 +86,13 @@ services:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"      # Increased from 0.5
-          memory: "3G"     # Increased from 1.5G
-        reservations:
-          cpus: "1.0"
-          memory: "2G"
+    mem_limit: 3g
+    cpus: 2.0
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
-      - ./clickhouse-config/config.d:/etc/clickhouse-server/config.d  # Add custom config
-      - ./clickhouse-config/users.d:/etc/clickhouse-server/users.d    # Add custom users config
+      - ./clickhouse-config/config.d:/etc/clickhouse-server/config.d
+      - ./clickhouse-config/users.d:/etc/clickhouse-server/users.d
     ports:
       - 127.0.0.1:8123:8123
       - 127.0.0.1:9000:9000
