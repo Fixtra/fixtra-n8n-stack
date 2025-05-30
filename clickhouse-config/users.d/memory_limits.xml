@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <profiles>
+        <default>
+            <!-- Memory limits per query/user -->
+            <max_memory_usage>536870912</max_memory_usage>              <!-- 512MB per query -->
+            <max_memory_usage_for_user>1073741824</max_memory_usage_for_user> <!-- 1GB per user -->
+            
+            <!-- Thread limits -->
+            <max_threads>2</max_threads>                                <!-- Limit threads per query -->
+            
+            <!-- External memory for large operations -->
+            <max_bytes_before_external_group_by>268435456</max_bytes_before_external_group_by> <!-- 256MB -->
+            <max_bytes_before_external_sort>268435456</max_bytes_before_external_sort>         <!-- 256MB -->
+            
+            <!-- Query timeouts -->
+            <max_execution_time>30</max_execution_time>                 <!-- 30 seconds max -->
+            <queue_max_wait_ms>5000</queue_max_wait_ms>                <!-- 5 second queue wait -->
+            
+            <!-- Block processing -->
+            <max_block_size>4096</max_block_size>                      <!-- Reduced from 65536 -->
+            <max_insert_block_size>262144</max_insert_block_size>      <!-- Reduced from 1048576 -->
+            
+            <!-- Network timeouts -->
+            <receive_timeout>30</receive_timeout>
+            <send_timeout>30</send_timeout>
+        </default>
+    </profiles>
+</clickhouse>

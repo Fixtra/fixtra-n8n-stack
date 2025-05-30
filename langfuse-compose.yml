@@ -86,40 +86,28 @@ services:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
-      # Memory limits
-      MAX_MEMORY_USAGE: "512M" # Reduced from 1GB
-      MAX_MEMORY_USAGE_FOR_USER: "512M"
-      MAX_SERVER_MEMORY_USAGE: "768M" # Allow overhead but still under container limit
-      # Thread and background operations
-      MERGE_TREE_THREADS: "1" # Reduced from 2
-      BACKGROUND_POOL_SIZE: "1" # Reduced from 2
-      BACKGROUND_SCHEDULE_POOL_SIZE: "1" # Reduced from 2
-      # Add query execution limits
-      MAX_EXECUTION_TIME: "30" # 30 seconds max query time
-      MAX_CONCURRENT_QUERIES: "5"
-      # Cache settings
-      MARK_CACHE_SIZE: "128M" # Smaller cache
-      UNCOMPRESSED_CACHE_SIZE: "128M" # Smaller cache
-      # IO settings
-      MAX_BYTES_BEFORE_EXTERNAL_SORT: "64M" # Use disk for sorting earlier
-      MAX_THREADS: "2" # Limit max threads per query
     deploy:
       resources:
         limits:
-          cpus: "0.5" # Reduced from 1.0
-          memory: "1.5G" # Reduced from 1.5G
+          cpus: "2.0"      # Increased from 0.5
+          memory: "3G"     # Increased from 1.5G
+        reservations:
+          cpus: "1.0"
+          memory: "2G"
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
+      - ./clickhouse-config/config.d:/etc/clickhouse-server/config.d  # Add custom config
+      - ./clickhouse-config/users.d:/etc/clickhouse-server/users.d    # Add custom users config
     ports:
       - 127.0.0.1:8123:8123
       - 127.0.0.1:9000:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 1s
+      retries: 5
+      start_period: 10s
     networks:
       - fixtra-n8n-stack_n8n-network
 
