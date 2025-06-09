@@ -63,7 +63,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       <<: *langfuse-worker-env
-      NEXTAUTH_URL: https://langfuse.wizardengine.fixtra.io
+      NEXTAUTH_URL: https://dev.langfuse.fixtra.io
       NEXTAUTH_SECRET: mysecret
       BASE_PATH: "" # Puste, ponieważ używamy subdomeny
       LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-}
